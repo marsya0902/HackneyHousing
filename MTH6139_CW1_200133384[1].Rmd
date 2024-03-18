@@ -1,0 +1,126 @@
+---
+title: "MTH6139 Time Series"
+subtitle: "Coursework 1"
+author: Nur Marsya Saleem 
+name: School of Mathematical Sciences
+date: "March 2024"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r Picture, echo=FALSE, message=FALSE, warning=FALSE}
+library(htmltools)
+htmltools::img(src = knitr::image_uri("C:/Users/marsy/Downloads/QMlogo.png"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px; width:30%;')
+htmltools::img(src = knitr::image_uri("C:/Users/marsy/Downloads/HackneyHousing.png"), 
+               alt = 'picture', 
+               style = 'position:static; top:0; right:0; padding:100px; width:100%;')
+```
+
+This project is using housing data in London from 1995 to 2020. I have conducted a forecasting analysis on the housing prices in the Borough of Hackney specifically. This was done using Meta's Prophet forecasting tool, as well as additional analysis methods to further strengthen the outcome of this project.
+
+## 1.1 Meta's Prophet Forecasting System
+
+## Setup
+
+```{r Libraries, include=FALSE}
+library(here)
+library(prophet)
+library(ggplot2)
+library(forecast)
+library(zoo)
+```
+
+```{r Data Setup, include=FALSE}
+Hackney_Housing = read.csv("C:/Users/marsy/Downloads/housing_in_london_monthly_variables.csv")
+Hackney_Housing$date <- as.Date(Hackney_Housing$date, format = "%d/%m/%Y")
+```
+
+```{r Plots, echo=FALSE}
+summary(Hackney_Housing)
+plot(Hackney_Housing$date, Hackney_Housing$average_price, type = "l", xlab = "Date", ylab = "Average Price")
+```
+
+I started by setting my working directory and loading the data file into the program. I then viewed a summary of the data before making any necessary amendments prior to making a basic plot. From the plot, we can see the prices of houses in Hackney have been steadily increasing since 1995. However, we are able to see a dip in the 2010's. This could be due to the aftermath of the 2008 Global Financial Crisis, causing consumer speculation. There has been a slow increase since then.
+
+```{r Prophet, echo=FALSE, message=FALSE, warning=FALSE}
+Hackney_Housing_zoo = zoo(Hackney_Housing$average_price,Hackney_Housing$date)
+Hackney_Housing_df = data.frame(ds=as.Date(index(Hackney_Housing_zoo)), 
+                                y=coredata(Hackney_Housing_zoo))
+Hackney_Housing_Prophet = prophet::prophet(Hackney_Housing_df)
+Hackney_Housing_Future = prophet::make_future_dataframe(Hackney_Housing_Prophet,periods=8, freq="quarter")
+Hackney_Housing_Prediction = predict(Hackney_Housing_Prophet,Hackney_Housing_Future)
+plot(Hackney_Housing_Prophet,Hackney_Housing_Prediction)
+prophet_plot_components(Hackney_Housing_Prophet,Hackney_Housing_Prediction)
+```
+
+Based on the Prophet plot, we can see that the predicted data is continuing its increase in prices in coming years.
+
+Based on the Components plot, we can disregard the trend component, as it further reinforces the previous plots and assumptions. Looking at the yearly trends, we can see a dip in housing prices in Hackney around February, and an almost direct jump to a relatively constant graph then onward. This could be due to a decrease in consumer confidence and purchasing power during the new year driving down housing prices in the area.
+
+## 1.2 Linear Regression
+
+```{r Linear Regression, echo=FALSE, message=FALSE, warning=FALSE}
+Hackney_Housing_lm = lm(y~ds, data.frame(Hackney_Housing_df))
+summary(Hackney_Housing_lm)
+par(mfrow=c(2,2))
+plot(Hackney_Housing_lm)
+linear.graph = ggplot(Hackney_Housing_lm, aes(x=y, y=ds))+geom_point()
+linear.graph
+linear.graph = linear.graph + geom_smooth(method = "lm", col = "red")
+linear.graph
+```
+
+From the summary table, we can see that there is a significant positive relationship based on the p-value\<0.001.
+
+Looking at the Normal Q-Q Plot, we can see that the residuals form a close one-to-one line, with values trailing off at the tail and head of the graph, signifying a higher variance. We use the previously stated p-value to deduce that the standardized residuals do not follow a normal distribution, which is also seen in the curved line of the Residuals vs Fitted graph.
+
+Due to the increasing variability, it may make predicting future data more challenging. Hence, a linear regression model may not be suitable for this project.
+
+However, looking at the smoothed linear regression graph, we can see that the data corresponds to the regression line, as well as reflects the increased variability during the housing crisis in the 2010s.
+
+## 1.3 Holt-Winters Forecasting Method
+
+```{r HW, echo=FALSE, message=FALSE, warning=FALSE}
+Hackney_Housing$average_price = as.numeric(Hackney_Housing$average_price)
+Hackney_Housing_ts = ts(Hackney_Housing$average_price, start = c(1995, 1), frequency = 12)
+HW_Model = hw(Hackney_Housing_ts, seasonal = "multiplicative")
+HW_Forecast = forecast(HW_Model, h = 12)
+par(mfrow=c(1,1))
+plot(HW_Forecast, main = "Holt-Winters Forecast", xlab = "Year", ylab = "Price")
+```
+
+Here I forecast an additional two years of data by using the Holt-Winters forecasting method and the loaded Forecast library.
+
+This is an unfitted graph of the model.
+
+Looking at the shaded area of the graph (the prediction), it is in line with the previous Prophet output.
+
+```{r HW Fitted, echo=FALSE, message=FALSE, warning=FALSE}
+Fitted_HW = fitted(HW_Model)
+ggplot() +
+  geom_line(aes(x = Hackney_Housing$date, y = Hackney_Housing_ts, color = "Actual")) +
+  geom_line(aes(x = Hackney_Housing$date, y = Fitted_HW, color = "Fitted")) +
+  labs(title = "Actual vs. Fitted Values", x = "Date", y = "Average Price") +
+  scale_color_manual(values = c("Actual" = "blue", "Fitted" = "red")) +
+  theme_minimal()
+```
+
+Based on the Actual vs Fitted Model, we can see that they are extremely similar, signifying the data has captured trends and underlying factors well, verifying the suitability of the data.
+
+## 1.4 Interactive Dyplot
+
+```{r Dyplot, echo=FALSE, message=FALSE, warning=FALSE}
+dyplot.prophet(Hackney_Housing_Prophet,Hackney_Housing_Prediction,uncertainty = TRUE)
+```
+
+I have attached an interactive dyplot that displays the actual vs predicted prices of houses in Hackney by month. We can see that the predicted prices are extremely close to the actual prices, signifying the reliability of the data and forecasting.
+
+## Conclusion
+
+To conclude this project, we can see that the prices of houses in Hackney has been and may continue to increase in coming years. This could largely be due to the gentrification of the area, with the opening of new schools, retail outlets, restaurants and cafes. However, it is important to note that this data does not reflect the purchasing power of consumers as well as other variables such as the economic standing of the country.
+
+The data: <https://www.kaggle.com/datasets/justinas/housing-in-london>
